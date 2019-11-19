@@ -5,12 +5,12 @@ export PATH
 #=================================================
 #	System Required: CentOS/Debian/Ubuntu
 #	Description: MTProxy Golang
-#	Version: 1.0.1
+#	Version: 1.0.2
 #	Author: Toyo
 #	Blog: https://doub.io/shell-jc9/
 #=================================================
 
-sh_ver="1.0.1"
+sh_ver="1.0.2"
 filepath=$(cd "$(dirname "$0")"; pwd)
 file_1=$(echo -e "${filepath}"|awk -F "$0" '{print $1}')
 file="/usr/local/mtproxy-go"
@@ -115,7 +115,7 @@ Download(){
 }
 Service(){
 	if [[ ${release} = "centos" ]]; then
-		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubiBackup/doubi/master/service/mtproxy_go_centos" -O /etc/init.d/mtproxy-go; then
+		if ! wget --no-check-certificate "https://raw.githubusercontent.com/Bright-W/doubi/master/service/mtproxy_go_centos" -O /etc/init.d/mtproxy-go; then
 			echo -e "${Error} MTProxy服务 管理脚本下载失败 !"
 			rm -rf "${file}"
 			exit 1
@@ -124,7 +124,7 @@ Service(){
 		chkconfig --add mtproxy-go
 		chkconfig mtproxy-go on
 	else
-		if ! wget --no-check-certificate "https://raw.githubusercontent.com/ToyoDAdoubiBackup/doubi/master/service/mtproxy_go_debian" -O /etc/init.d/mtproxy-go; then
+		if ! wget --no-check-certificate "https://raw.githubusercontent.com/Bright-W/doubi/master/service/mtproxy_go_debian" -O /etc/init.d/mtproxy-go; then
 			echo -e "${Error} MTProxy服务 管理脚本下载失败 !"
 			rm -rf "${file}"
 			exit 1
@@ -180,15 +180,32 @@ Set_port(){
 Set_passwd(){
 	while true
 		do
-		echo "请输入 MTProxy 密匙（手动输入必须为32位，[0-9][a-z][A-Z]，建议随机生成）"
-		read -e -p "(避免出错，强烈推荐随机生成，直接回车):" mtp_passwd
-		if [[ -z "${mtp_passwd}" ]]; then
-			mtp_passwd=$(date +%s%N | md5sum | head -c 32)
-		else
-			[[ ${#mtp_passwd} != 32 ]] && echo -e "${Error} 请输入正确的密匙（32位字符）。" && continue
+			mtp_passwd="test"
+			echo && echo -e "请选择密码类型
+	 ${Green_font_prefix}1.${Font_color_suffix}  simple
+	 ${Green_font_prefix}2.${Font_color_suffix}  secured (with dd)
+	 ${Green_font_prefix}3.${Font_color_suffix}  fake TLS (with ee)"
+		read -e -p "(默认3: fake TLS):" mtp_passtype
+		[[ -z "${mtp_passtype}" ]] && mtp_passtype="3"
+		if [[ "${mtp_passtype}" == "1" ]]; then
+			mtp_passwd=$(eval "${mtproxy_file}" generate-secret simple)
+			elif [[ "${mtp_passtype}" == "2" ]]; then
+			 		mtp_passwd=$(eval "${mtproxy_file}" generate-secret secured)
+			 	elif [[ "${mtp_passtype}" == "3" ]]; then
+			 		echo -e "请输入伪装域名, 比如 google.com"
+					read -e -p "(fake TLS伪装域名):" mtp_domain
+			 		mtp_passwd=$(eval "${mtproxy_file}" generate-secret tls -c "${mtp_domain}")
+			 	else	
+			 		 echo -e "${Error} 请输入正确的数字 [1-3]。" && continue
+
 		fi
+		#if [[ -z "${mtp_passwd}" ]]; then
+		#	mtp_passwd=$(date +%s%N | md5sum | head -c 32)
+		#else
+		#	[[ ${#mtp_passwd} != 32 ]] && echo -e "${Error} 请输入正确的密匙（32位字符）。" && continue
+		#fi
 		echo && echo "========================"
-		echo -e "	密码 : ${Red_background_prefix} dd${mtp_passwd} ${Font_color_suffix}"
+		echo -e "	密码 : ${Red_background_prefix} ${mtp_passwd} ${Font_color_suffix}"
 		echo "========================" && echo
 		break
 	done
@@ -317,7 +334,7 @@ Set(){
 		Set_passwd
 		Set_tag
 		Set_nat
-		Set_secure
+		#Set_secure
 		Write_config
 		Restart
 	elif [[ "${mtp_modify}" == "7" ]]; then
@@ -331,17 +348,18 @@ Set(){
 Install(){
 	check_root
 	[[ -e ${mtproxy_file} ]] && echo -e "${Error} 检测到 MTProxy 已安装 !" && exit 1
-	echo -e "${Info} 开始设置 用户配置..."
-	Set_port
-	Set_passwd
-	Set_tag
-	Set_nat
-	Set_secure
+	
 	echo -e "${Info} 开始安装/配置 依赖..."
 	Installation_dependency
 	echo -e "${Info} 开始下载/安装..."
 	check_new_ver
 	Download
+	echo -e "${Info} 开始设置 用户配置..."
+	Set_port
+	Set_passwd
+	Set_tag
+	Set_nat
+	#Set_secure
 	echo -e "${Info} 开始下载/安装 服务脚本(init)..."
 	Service
 	echo -e "${Info} 开始写入 配置文件..."
@@ -442,16 +460,16 @@ View(){
 	echo -e " 地址\t: ${Green_font_prefix}${nat_ipv4}${Font_color_suffix}"
 	[[ ! -z "${nat_ipv6}" ]] && echo -e " 地址\t: ${Green_font_prefix}${nat_ipv6}${Font_color_suffix}"
 	echo -e " 端口\t: ${Green_font_prefix}${port}${Font_color_suffix}"
-	echo -e " 密匙\t: ${Green_font_prefix}dd${passwd}${Font_color_suffix}"
+	echo -e " 密匙\t: ${Green_font_prefix}${passwd}${Font_color_suffix}"
 	[[ ! -z "${tag}" ]] && echo -e " TAG \t: ${Green_font_prefix}${tag}${Font_color_suffix}"
-	echo -e " 链接\t: ${Red_font_prefix}tg://proxy?server=${nat_ipv4}&port=${port}&secret=dd${passwd}${Font_color_suffix}"
-	echo -e " 链接\t: ${Red_font_prefix}https://t.me/proxy?server=${nat_ipv4}&port=${port}&secret=dd${passwd}${Font_color_suffix}"
-	[[ ! -z "${nat_ipv6}" ]] && echo -e " 链接\t: ${Red_font_prefix}tg://proxy?server=${nat_ipv6}&port=${port}&secret=dd${passwd}${Font_color_suffix}"
-	[[ ! -z "${nat_ipv6}" ]] && echo -e " 链接\t: ${Red_font_prefix}https://t.me/proxy?server=${nat_ipv6}&port=${port}&secret=dd${passwd}${Font_color_suffix}"
+	echo -e " 链接\t: ${Red_font_prefix}tg://proxy?server=${nat_ipv4}&port=${port}&secret=${passwd}${Font_color_suffix}"
+	echo -e " 链接\t: ${Red_font_prefix}https://t.me/proxy?server=${nat_ipv4}&port=${port}&secret=${passwd}${Font_color_suffix}"
+	[[ ! -z "${nat_ipv6}" ]] && echo -e " 链接\t: ${Red_font_prefix}tg://proxy?server=${nat_ipv6}&port=${port}&secret=${passwd}${Font_color_suffix}"
+	[[ ! -z "${nat_ipv6}" ]] && echo -e " 链接\t: ${Red_font_prefix}https://t.me/proxy?server=${nat_ipv6}&port=${port}&secret=${passwd}${Font_color_suffix}"
 	echo
-	echo -e " 强制安全模式\t: ${Green_font_prefix}${secure}${Font_color_suffix}"
-	echo
-	echo -e " ${Red_font_prefix}注意\t:${Font_color_suffix} 密匙头部的 ${Green_font_prefix}dd${Font_color_suffix} 字符是代表客户端启用${Green_font_prefix}安全混淆模式${Font_color_suffix}，可以降低服务器被墙几率。\n     \t  另外，在官方机器人处分享账号获取TAG标签时记得删除，获取TAG标签后分享时可以再加上。"
+	#echo -e " 强制安全模式\t: ${Green_font_prefix}${secure}${Font_color_suffix}"
+	#echo
+	echo -e " ${Red_font_prefix}注意\t:${Font_color_suffix} 密匙头部的 ${Green_font_prefix}dd${Font_color_suffix} 字符是代表客户端启用${Green_font_prefix}安全混淆模式${Font_color_suffix}, ${Green_font_prefix}ee${Font_color_suffix} 字符是代表客户端启用${Green_font_prefix}Fake TLS${Font_color_suffix}，可以降低服务器被墙几率。\n     \t  另外，在官方机器人处分享账号获取TAG标签时记得删除，获取TAG标签后分享时可以再加上。"
 }
 View_Log(){
 	check_installed_status
@@ -695,7 +713,7 @@ Set_iptables(){
 	fi
 }
 Update_Shell(){
-	sh_new_ver=$(wget --no-check-certificate -qO- -t1 -T3 "https://raw.githubusercontent.com/ToyoDAdoubiBackup/doubi/master/mtproxy_go.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1) && sh_new_type="github"
+	sh_new_ver=$(wget --no-check-certificate -qO- -t1 -T3 "https://raw.githubusercontent.com/Bright-W/doubi/master/mtproxy_go.sh"|grep 'sh_ver="'|awk -F "=" '{print $NF}'|sed 's/\"//g'|head -1) && sh_new_type="github"
 	[[ -z ${sh_new_ver} ]] && echo -e "${Error} 无法链接到 Github !" && exit 0
 	if [[ -e "/etc/init.d/mtproxy-go" ]]; then
 		rm -rf /etc/init.d/mtproxy-go
